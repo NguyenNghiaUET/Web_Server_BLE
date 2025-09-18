@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>ESP32 BLE LED Control</title>
+  <style>
+    body { font-family: Arial, sans-serif; text-align: center; margin-top: 40px; }
+    h1 { color: #333; }
+    button { 
+      padding: 14px 28px; 
+      margin: 15px; 
+      font-size: 18px; 
+      border-radius: 10px; 
+      cursor: pointer; 
+      border: none;
+    }
+    #connectBtn { background: #007BFF; color: white; }
+    #ledToggle { background: gray; color: white; }
+    #status { margin-top: 20px; font-weight: bold; }
+    #log { margin-top: 20px; white-space: pre-line; text-align: left; display: inline-block; background: #f9f9f9; padding: 12px; border-radius: 8px; width: 60%; }
+  </style>
+</head>
+<body>
+  <h1>ESP32 Web Bluetooth</h1>
+  <button id="connectBtn">🔗 Kết nối ESP32</button>
+  <button id="ledToggle" disabled>💡 Bật LED</button>
+
+  <p id="status">Chưa kết nối</p>
+  <div id="log"></div>
+
+  <script>
+    const connectBtn = document.getElementById("connectBtn");
+    const ledToggleBtn = document.getElementById("ledToggle");
+    const status = document.getElementById("status");
+    const logBox = document.getElementById("log");
+
+    let ledCharacteristic;
+    let ledState = false; // false = OFF, true = ON
+
+    function log(msg) {
+      logBox.textContent += msg + "\n";
+    }
+
+    connectBtn.addEventListener("click", async () => {
+      try {
+        const device = await navigator.bluetooth.requestDevice({
+          filters: [{ namePrefix: "ESP32" }],
+         optionalServices: ["battery_service"]
+
+        });
+
+        status.textContent = `Đã chọn: ${device.name}`;
+        log(`🔗 Kết nối tới ${device.name}...`);
+
+        const server = await device.gatt.connect();
+        status.textContent = `✅ Đã kết nối tới ${device.name}`;
+        log("GATT connected");
+
+
+const service = await server.getPrimaryService("battery_service");
+
+        // Battery service demo
+      const batteryChar = await service.getCharacteristic(0x2A19);
+
+        const val = await batteryChar.readValue();
+        log(`🔋 Pin ESP32: ${val.getUint8(0)}%`);
+
+        // LED characteristic
+        ledCharacteristic = await service.getCharacteristic("12345678-1234-1234-1234-1234567890ab");
+        log("💡 LED characteristic ready");
+
+        ledToggleBtn.disabled = false;
+      } catch (err) {
+        console.error(err);
+        status.textContent = "❌ Lỗi: " + err;
+        log("❌ " + err);
+      }
+    });
+
+    ledToggleBtn.addEventListener("click", async () => {
+      if (ledCharacteristic) {
+        ledState = !ledState; // đảo trạng thái
+        const cmd = ledState ? "1" : "0";
+        await ledCharacteristic.writeValue(new TextEncoder().encode(cmd));
+        log(ledState ? "💡 LED ON" : "❌ LED OFF");
+
+        // đổi màu nút
+        ledToggleBtn.textContent = ledState ? "❌ Tắt LED" : "💡 Bật LED";
+        ledToggleBtn.style.background = ledState ? "red" : "green";
+      }
+    });
+  </script>
+</body>
+</html>
